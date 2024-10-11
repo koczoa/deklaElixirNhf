@@ -297,7 +297,9 @@ defmodule Nhf1 do
       def helix({n, m, costs}) do 
         solve(Khf2.balra(1, 1, n, 1, Enum.into(costs, %{})),  to2d(n, costs), 1, m)
       end
-
+      
+      @spec to2d(n::integer(), consts::[index_value()])
+      # előállít egy n*n-es "mátrixot", és a consts értékeit beleteszi
       defp to2d(n, consts) do
         cs = Map.new(consts)
         for y <- 1..n do
@@ -307,48 +309,52 @@ defmodule Nhf1 do
         end          
       end
 
+      @spec solve(csiga::[field_opt_value()] , table::%{}, curr::integer(), m::integer())
+      # kitölti a table-t a megkapott csiga értékekkel
       defp solve([], table, _, _) do
         [table]
       end
 
+
       defp solve([{{y, x}, val} | rest], table, curr, m) do
-        cond do
-          val == curr ->  solve(rest, table, currSetter(curr, m), m)
-          val == nil ->
-            neuTable = replaceIdx(table, {y, x}, curr)
-            a = if checkConst(neuTable, {y, x}, m) do
+        case val do
+          ^curr -> solve(rest, table, currSetter(curr, m), m)
+          nil ->
+            a = if checkConst(table, {y, x}, m, curr) do
+              neuTable = replaceIdx(table, {y, x}, curr)
               solve(rest, neuTable, currSetter(curr, m), m)
             else
               []
             end
-            neuTable = replaceIdx(table, {y, x}, 0)
-            b = if checkConst(neuTable, {y, x}, m) do
+            b = if checkConst(table, {y, x}, m, 0) do
+              neuTable = replaceIdx(table, {y, x}, 0)
               solve(rest, neuTable, curr, m)
             else
               []
             end
             a++b
-          true -> []
+          _ -> []
         end
       end
 
 
-      defp checkConst(table, {y, x}, m) do
+      @spec checkConst(table::%{}, coords::field(), m::integer(), val::integer())
+      # ellenőrzi, hogy a val értéke lerakható-e a coords-ban kapott helyre a table-ben
+      defp checkConst(table, {y, x}, m, val) do
         row = Enum.at(table, y-1)
-        col = Enum.map(table, fn row -> Enum.at(row, x-1) end)
-        val = idx(table, {y, x})
         if val == 0 do
-          xdrow = Enum.count(row, fn a -> a != 0 end) >= m
-          xdcol = Enum.count(col, fn a -> a != 0 end) >= m
+          xdrow = Enum.count(row, fn a -> a != 0 end) >= m + 1
+          xdcol = Enum.count(table, fn row -> Enum.at(row, x-1) !== 0 end) >= m + 1 
           xdrow and xdcol
         else
-          rc = Enum.count(row, fn a -> a == val end) == 1
-          cc = Enum.count(col, fn a -> a == val end) == 1
+          rc = Enum.all?(row, fn a -> a !== val end)
+          cc = Enum.all?(table, fn row -> Enum.at(row, x-1) !== val end)
           rc and cc
         end
-        # rc and cc and xdrow and xdcol
       end
       
+      @spec(curr::integer(), m::interger())
+      # növeli egyel a curr értékét, amíg az el nem éri m-et, különben egyre állítja 
       defp currSetter(curr, m) do
         if curr == m do
           1
@@ -356,18 +362,12 @@ defmodule Nhf1 do
           curr + 1
         end
       end
-
+      @spec replaceIdx(table::%{}, coords::field(), val::integer())
+      # A táblában az x, y koordinátán álló számot kicseréli a val értékére
       defp replaceIdx(table, {y, x}, val) do
         List.update_at(table, y-1, fn oldRow -> List.replace_at(oldRow, x-1, val) end)
       end
-
-      defp idx(table, {y, x}) do
-       Enum.at(Enum.at(table, y-1), x-1)
-      end
 end
-# Nhf1.helix({4, 2, [{{1, 1}, 1}, {{1, 4}, 2}]}) |> IO.inspect()
-# Nhf1.helix({6, 3, [{{1,5},2},{{2,2},1},{{4,6},1}]}) |> IO.inspect
-# Khf2.helix(["6", "3", "1 5 2", "2 2 1", "4 6 1"]) |> IO.inspect()
 
 defmodule Nhf1Testcases do
 
@@ -386,13 +386,19 @@ defmodule Nhf1Testcases do
       10 => {8, 4, [{{2, 3}, 4}, {{3, 3}, 2}, {{6, 1}, 1}, {{7, 6}, 3}], [[[0, 0, 1, 2, 3, 4, 0, 0], [0, 0, 4, 0, 1, 2, 3, 0], [0, 0, 2, 3, 0, 0, 4, 1], [3, 1, 0, 4, 0, 0, 0, 2], [2, 4, 0, 0, 0, 0, 1, 3], [1, 3, 0, 0, 0, 0, 2, 4], [0, 2, 0, 1, 4, 3, 0, 0], [4, 0, 3, 0, 2, 1, 0, 0]], [[0, 0, 1, 2, 3, 4, 0, 0], [0, 0, 4, 0, 1, 2, 3, 0], [3, 0, 2, 0, 0, 0, 4, 1], [0, 1, 3, 4, 0, 0, 0, 2], [2, 4, 0, 0, 0, 0, 1, 3], [1, 3, 0, 0, 0, 0, 2, 4], [0, 2, 0, 1, 4, 3, 0, 0], [4, 0, 0, 3, 2, 1, 0, 0]]]},
       11 => {9, 3, [{{1, 7}, 3}, {{3, 1}, 1}, {{6, 1}, 3}, {{6, 2}, 2}, {{6, 6}, 1}, {{8, 4}, 3}, {{9, 2}, 1}], [[[0, 0, 0, 0, 1, 2, 3, 0, 0], [0, 0, 2, 0, 0, 0, 0, 3, 1], [1, 3, 0, 0, 0, 0, 0, 0, 2], [0, 0, 0, 1, 2, 3, 0, 0, 0], [0, 0, 0, 2, 3, 0, 1, 0, 0], [3, 2, 0, 0, 0, 1, 0, 0, 0], [0, 0, 3, 0, 0, 0, 2, 1, 0], [0, 0, 1, 3, 0, 0, 0, 2, 0], [2, 1, 0, 0, 0, 0, 0, 0, 3]]]}
     }
-  for i <- 0..map_size(testcases)-1
-    do
-    {size, cycle, constrains, solutions} = testcases[i]
-    {"Test case #{i}",
-     Nhf1.helix({size, cycle, constrains}) |> Enum.sort() === solutions
-    }
-    |> IO.inspect
+  for k <- 1..100 do
+    for j <- 1..10 do
+        
+      for i <- 0..map_size(testcases)-1
+        do
+        {size, cycle, constrains, solutions} = testcases[i]
+        {"Test case #{i}",
+         Nhf1.helix({size, cycle, constrains}) |> Enum.sort() === solutions
+        }
+        # |> IO.inspect
+      end
+    end
+  IO.inspect(k)
   end
-
+  
 end
